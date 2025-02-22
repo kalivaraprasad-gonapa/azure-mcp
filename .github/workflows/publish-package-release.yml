@@ -1,8 +1,8 @@
 name: Node.js Package
 
 on:
-    release:
-      types: [created]
+  release:
+    types: [created]
 
 jobs:
   build:
@@ -23,8 +23,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: "https://registry.npmjs.org"
+          registry-url: "https://registry.npmjs.org/"
+      # Create .npmrc for authentication
+      - run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
+          npm pkg set name="azure-mcp"
       - run: npm ci
-      - run: npm publish
+      - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

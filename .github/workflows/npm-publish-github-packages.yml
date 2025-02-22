@@ -15,27 +15,27 @@ jobs:
       - run: npm ci
       # - run: npm test  # TODO: uncomment when tests are implemented
 
-  publish-gpr:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://npm.pkg.github.com/
-          scope: "@Streen9"
-      # Create .npmrc file and update package name temporarily for publishing
-      - name: Setup package for publishing
-        run: |
-          echo "@Streen9:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          # Temporarily modify package name for publishing
-          npm pkg set name="@Streen9/azure-mcp"
-      - run: npm ci
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  # publish-gpr:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 20
+  #         registry-url: https://npm.pkg.github.com/
+  #         scope: "@Streen9"
+  #     # Create .npmrc file and update package name temporarily for publishing
+  #     - name: Setup package for publishing
+  #       run: |
+  #         echo "@Streen9:registry=https://npm.pkg.github.com" >> .npmrc
+  #         echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+  #         # Temporarily modify package name for publishing
+  #         npm pkg set name="@Streen9/azure-mcp"
+  #     - run: npm ci
+  #     - run: npm publish
+  #       env:
+  #         NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
