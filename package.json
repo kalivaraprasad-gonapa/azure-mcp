@@ -7,8 +7,6 @@
     "azure-mcp": "./dist/launcher.js"
   },
   "scripts": {
-    "build": "tsc",
-    "prepare": "npm run build",
     "start": "tsx src/launcher.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
