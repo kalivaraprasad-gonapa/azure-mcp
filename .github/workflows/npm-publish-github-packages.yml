@@ -1,11 +1,8 @@
 name: Node.js Package
 
 on:
-  release:
-    types: [created]
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
@@ -30,11 +27,14 @@ jobs:
         with:
           node-version: 20
           registry-url: https://npm.pkg.github.com/
-          scope: '@Streen9'
-      # Create .npmrc file
-      - run: |
+          scope: "@Streen9"
+      # Create .npmrc file and update package name temporarily for publishing
+      - name: Setup package for publishing
+        run: |
           echo "@Streen9:registry=https://npm.pkg.github.com" >> .npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          # Temporarily modify package name for publishing
+          npm pkg set name="@Streen9/azure-mcp"
       - run: npm ci
       - run: npm publish
         env:
