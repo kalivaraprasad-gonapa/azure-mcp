@@ -1,4 +1,4 @@
-import { AzureMCPServer } from './azure-mcp-server';
+import { AzureMCPServer } from './AzureServer';
 import LoggerService from './LoggerService';
 
 async function startServer() {
