@@ -1,10 +1,13 @@
 {
-  "name": "azure-mcp",
+  "name": "@Streen9/azure-mcp",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "bin": {
     "azure-mcp": "./dist/launcher.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "start": "tsx src/launcher.ts",
