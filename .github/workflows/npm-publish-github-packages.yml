@@ -12,24 +12,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # Remove prepare script to avoid circular dependency
+          
+      # Clear npm cache and remove node_modules
+      - run: |
+          npm cache clean --force
+          rm -rf node_modules
+          rm -f package-lock.json
+          
+      # Remove prepare script
       - run: npm pkg delete scripts.prepare
       
-      # Install dependencies
+      # Install TypeScript first, before other dependencies
+      - run: npm install typescript --save-dev
+      
+      # Verify typescript installation
+      - run: ls node_modules/typescript/bin/tsc
+      
+      # Now install other dependencies
       - run: npm install
       
-      # Install TypeScript globally and locally
-      - run: npm install -g typescript
-      - run: npm install --save-dev typescript@latest
+      # Try compiling using the local TypeScript installation
+      - run: ./node_modules/.bin/tsc --version
+      - run: ./node_modules/.bin/tsc
       
-      # Verify TypeScript installation
-      - run: npx tsc --version
-      
-      # Now run the build
-      - run: npx tsc
       - run: npm test
 
   publish-gpr:
@@ -46,4 +55,4 @@ jobs:
           registry-url: https://npm.pkg.github.com/
       - run: npm pkg delete scripts.prepare
       - run: npm install
-      - run: npx tsc
+      - run: ./node_modules/.bin/tsc
