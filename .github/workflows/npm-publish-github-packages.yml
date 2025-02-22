@@ -15,13 +15,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # Remove the prepare script temporarily
+      # Remove prepare script to avoid circular dependency
       - run: npm pkg delete scripts.prepare
-      # Install dependencies including TypeScript
+      
+      # Install dependencies
       - run: npm install
-      - run: npm install --save-dev typescript @types/node
+      
+      # Install TypeScript globally and locally
+      - run: npm install -g typescript
+      - run: npm install --save-dev typescript@latest
+      
+      # Verify TypeScript installation
+      - run: npx tsc --version
+      
       # Now run the build
-      - run: npm run build
+      - run: npx tsc
       - run: npm test
 
   publish-gpr:
@@ -38,7 +46,4 @@ jobs:
           registry-url: https://npm.pkg.github.com/
       - run: npm pkg delete scripts.prepare
       - run: npm install
-      - run: npm run build
-      # - run: npm publish
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - run: npx tsc
