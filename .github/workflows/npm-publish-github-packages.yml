@@ -15,9 +15,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      # Remove the prepare script temporarily
+      - run: npm pkg delete scripts.prepare
+      # Install dependencies including TypeScript
       - run: npm install
       - run: npm install --save-dev typescript @types/node
-      - run: npm ci
+      # Now run the build
       - run: npm run build
       - run: npm test
 
@@ -33,7 +36,9 @@ jobs:
         with:
           node-version: 20
           registry-url: https://npm.pkg.github.com/
-      - run: npm ci
+      - run: npm pkg delete scripts.prepare
+      - run: npm install
+      - run: npm run build
       # - run: npm publish
       #   env:
       #     NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
