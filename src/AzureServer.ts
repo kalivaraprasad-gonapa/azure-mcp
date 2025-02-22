@@ -15,7 +15,6 @@ import {
 } from "@azure/identity";
 import { ResourceManagementClient } from "@azure/arm-resources";
 import { SubscriptionClient } from "@azure/arm-subscriptions";
-import * as dotenv from "dotenv";
 import LoggerService from "./LoggerService";
 
 // Constants

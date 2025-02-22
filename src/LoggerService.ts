@@ -54,9 +54,9 @@ class LoggerService {
             new winston.transports.Console({
                 format: winston.format.combine(
                     winston.format.uncolorize(),
-                    winston.format.printf(({ level, message }) => {
-                        return `[${level.toUpperCase()}]: ${message}`;
-                    })
+                    // winston.format.printf(({ level, message }) => {
+                    //     return `[${level.toUpperCase()}]: ${message}`;
+                    // })
                 ),
                 stderrLevels: ['error', 'warn', 'info'] // Send ALL console output to stderr
             })
