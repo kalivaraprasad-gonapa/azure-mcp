@@ -1,6 +1,6 @@
 {
   "name": "azure-mcp",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "",
   "author": "gkvp70@gmail.com",
   "bin": {
@@ -14,7 +14,7 @@
     "start": "node dist/launcher.js",
     "build": "tsc"
   },
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@azure/arm-compute": "^22.3.0",
     "@azure/arm-network": "^33.5.0",
