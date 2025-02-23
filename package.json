@@ -2,7 +2,6 @@
   "name": "azure-mcp",
   "version": "0.0.2",
   "description": "",
-  "type": "module",
   "author": "gkvp70@gmail.com",
   "bin": {
     "azure-mcp": "dist/launcher.js"
