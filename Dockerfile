@@ -1,32 +1,18 @@
-#Build stage
-FROM node:18-alpine AS build
+FROM node:22.14.0-alpine
 
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install -g typescript && \
-    npm install --include=dev
+# Install pnpm and dependencies
+RUN npm install
 
-# Copy source files
+# Copy application code
 COPY . .
 
-# Use npx explicitly to run the TypeScript compiler
-RUN tsc
+# Build TypeScript
+RUN npm run build
 
-RUN ls -li
-
-#Production stage
-FROM node:18-alpine AS production
-
-WORKDIR /app
-
-COPY package*.json ./
-
-RUN npm ci --only=production
-
-COPY --from=build /app/dist ./dist
-
-CMD ["node", "dist/launcher.js"]
+# Command will be provided by smithery.yaml
+CMD ["node", "dist/launcher.js"] 

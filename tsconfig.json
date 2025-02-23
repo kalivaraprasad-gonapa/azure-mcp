@@ -1,25 +1,17 @@
 {
   "compilerOptions": {
-    "target": "es2016",
+    "target": "es2022",
     "module": "commonjs",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": true,
-    "removeComments": true,
-    "outDir": "./dist",
-    "rootDir": "./src", 
-  },
-  "ts-node": {
-    "transpileOnly": true,
-    "transpiler": "ts-node/transpilers/swc",
-    "preferTsExts": true,
-    "logError": true,
-    "files": true,
-    "compilerOptions": {
-      "module": "commonjs"
+    "paths": {
+      "@/*": ["./src/*"]
     }
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
 }
