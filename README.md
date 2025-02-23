@@ -15,7 +15,7 @@ A Model Context Protocol (MCP) implementation that enables Claude Desktop to int
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js (v18 or higher)
 - Claude Desktop Application
 - Azure Account with appropriate permissions
 - Azure CLI (optional, for CLI-based authentication)
@@ -135,6 +135,9 @@ azure-mcp/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Contributors
+
+- [@calclavia](https://github.com/calclavia) - Integration with smithery.ai
 
 ## Acknowledgments
 
