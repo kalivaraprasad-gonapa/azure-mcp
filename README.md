@@ -22,13 +22,6 @@ A Model Context Protocol (MCP) implementation that enables Claude Desktop to int
 
 ## Installation
 
-### Installing via Smithery
-
-To install Azure MCP for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@Streen9/azure-mcp):
-
-```bash
-npx -y @smithery/cli install @Streen9/azure-mcp --client claude
-```
 
 ### Manual Installation
 
