@@ -2,6 +2,10 @@
 
 [![smithery badge](https://smithery.ai/badge/@Streen9/azure-mcp)](https://smithery.ai/server/@Streen9/azure-mcp)
 
+<a href="https://glama.ai/mcp/servers/8lqipo67ap">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/8lqipo67ap/badge" />
+</a>
+
 A Model Context Protocol (MCP) implementation that enables Claude Desktop to interact with Azure services. This integration allows Claude to query and manage Azure resources directly through natural language conversations.
 
 ## Features
