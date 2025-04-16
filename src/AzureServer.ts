@@ -16,12 +16,13 @@ import {
 import { ResourceManagementClient } from "@azure/arm-resources";
 import { SubscriptionClient } from "@azure/arm-subscriptions";
 import LoggerService from "./LoggerService";
+import { parseEnvInt } from "./config";
 
 // Constants
 const CONFIG = {
     SERVER_VERSION: process.env.SERVER_VERSION || "1.0.0",
-    MAX_RETRIES: parseInt(process.env.MAX_RETRIES || "3", 10),
-    RETRY_DELAY_MS: parseInt(process.env.RETRY_DELAY_MS || "1000", 10),
+    MAX_RETRIES: parseEnvInt(process.env.MAX_RETRIES || "3", 10),
+    RETRY_DELAY_MS: parseEnvInt(process.env.RETRY_DELAY_MS || "1000", 10),
     LOG_LEVEL: process.env.LOG_LEVEL || "info",
 };
 
@@ -471,12 +472,10 @@ class AzureMCPServer {
 
         try {
             const cacheKey = `resource-groups-${this.context.selectedSubscription}`;
-            const resourceGroups = await this.getCachedResource(cacheKey, async () => {
+            return await this.getCachedResource(cacheKey, async () => {
                 // Use azureOperations to handle the business logic
                 return await this.azureOperations.listResourceGroups();
-            }, 30000); // Cache for 30 seconds
-
-            return resourceGroups;
+            }, 30000);
         } catch (error) {
             this.logWithContext("error", `Error listing resource groups: ${error}`, { error });
             throw new AzureResourceError(`Failed to list resource groups: ${error}`);
