@@ -1,16 +1,23 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
-import path from 'path';
+import path from 'path'; // path is used by config.js, not directly here anymore if LOG_DIR is imported
 import fs from 'fs';
+import { LOG_DIR, MCP_MODE, CONFIG } from '../config.js'; // Import new configurations
 
+/**
+ * @class LoggerService
+ * @description Provides a singleton logging service for the application.
+ * It supports logging to files (with daily rotation) and console (stderr in MCP_MODE).
+ * Log levels and directory can be configured via environment variables.
+ */
 class LoggerService {
     private logger!: winston.Logger;
     private readonly logDir: string;
     private isMCPMode: boolean;
 
     constructor() {
-        this.logDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
-        this.isMCPMode = process.env.MCP_MODE === 'true';
+        this.logDir = LOG_DIR; // Use imported LOG_DIR
+        this.isMCPMode = MCP_MODE; // Use imported MCP_MODE
 
         // Ensure log directory exists
         if (!fs.existsSync(this.logDir)) {
@@ -53,17 +60,14 @@ class LoggerService {
             ...fileTransports,
             new winston.transports.Console({
                 format: winston.format.combine(
-                    winston.format.uncolorize(),
-                    // winston.format.printf(({ level, message }) => {
-                    //     return `[${level.toUpperCase()}]: ${message}`;
-                    // })
+                    winston.format.uncolorize()
                 ),
                 stderrLevels: ['error', 'warn', 'info'] // Send ALL console output to stderr
             })
         ];
 
         this.logger = winston.createLogger({
-            level: process.env.LOG_LEVEL || 'info',
+            level: CONFIG.LOG_LEVEL, // Use imported CONFIG.LOG_LEVEL
             format: logFormat,
             exitOnError: false,
             handleExceptions: true,
@@ -95,18 +99,36 @@ class LoggerService {
         }
     }
 
+    /**
+     * @method info
+     * @description Logs an informational message.
+     * @param {string} message - The message to log.
+     * @param {any} [meta] - Optional metadata to include with the log.
+     */
     public info(message: string, meta?: any): void {
         const formattedMessage = this.formatMessage(message, meta);
         this.logToStderr('info', formattedMessage);
         this.logger.info(formattedMessage);
     }
 
+    /**
+     * @method error
+     * @description Logs an error message.
+     * @param {string} message - The message to log.
+     * @param {any} [meta] - Optional metadata to include with the log.
+     */
     public error(message: string, meta?: any): void {
         const formattedMessage = this.formatMessage(message, meta);
         this.logToStderr('error', formattedMessage);
         this.logger.error(formattedMessage);
     }
 
+    /**
+     * @method warning
+     * @description Logs a warning message.
+     * @param {string} message - The message to log.
+     * @param {any} [meta] - Optional metadata to include with the log.
+     */
     public warning(message: string, meta?: any): void {
         const formattedMessage = this.formatMessage(message, meta);
         this.logToStderr('warn', formattedMessage);

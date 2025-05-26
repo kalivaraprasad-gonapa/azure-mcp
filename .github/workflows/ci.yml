@@ -1,0 +1,48 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [ '22.x' ]
+        python-version: [ '3.9' ] # Or a version compatible with python app
+
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm' # Cache npm dependencies
+
+    - name: Install Node.js dependencies
+      run: npm ci # Use ci for cleaner installs in CI
+
+    - name: Run Node.js tests
+      run: npm test
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip' # Cache pip dependencies
+        cache-dependency-path: src/requirements.txt
+
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r src/requirements.txt
+
+    - name: Run Python tests
+      # Assuming tests are in src/web/tests and can be run with pytest
+      run: pytest src/web/tests

@@ -1,7 +1,12 @@
-Flask
-SQLAlchemy
-gunicorn
+Flask==3.0.3
+SQLAlchemy==2.0.31
+gunicorn==22.0.0
+PyMySQL==1.1.1
+coloredlogs==15.0.1
+python-dotenv==1.0.1
+pytest==8.3.2
+pytest-flask==0.15.1
 
-PyMySQL
-coloredlogs
-python-dotenv
+# Note: These versions are recent stable versions as of a point in time.
+# It is recommended to verify these against the specific versions tested
+# in your development/production environments and update as needed.

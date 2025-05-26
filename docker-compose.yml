@@ -1,50 +1,59 @@
 services:
+  # The Python Flask web application providing health checks and a basic UI.
   app:
-    stdin_open: true
-    tty: true
-    image: container-omw0eju
+    stdin_open: true  # Keeps STDIN open for the container, useful for interactive sessions.
+    tty: true         # Allocates a pseudo-TTY, also for interactive use.
+    image: container-omw0eju # Specifies the image name to be built or used.
     build:
-      context: ./src
+      context: .  # Build context is the project root.
+      dockerfile: web.Dockerfile # Uses web.Dockerfile for building the Flask app image.
     ports:
-      - "5000:5000"
+      - "5000:5000" # Maps port 5000 of the host to port 5000 of the container (Flask default).
     volumes:
+      # Mounts the local src/web directory into the container for live code reloading during development.
       - type: bind
-        source: ./src/web
+        source: ./src/web 
         target: /usr/src/app
+    # Environment variables for the Flask application.
     environment:
-      ALLOWED_HOSTS: "127.0.0.1,localhost"
+      ALLOWED_HOSTS: "127.0.0.1,localhost" # Specifies allowed hostnames for the Flask app.
+      # Connection details for the MySQL database service defined below.
       DATABASE_URL: mysql2=//app_user=password@db=3306/app_database?pool=5&useUnicode=true&characterEncoding=UTF-8
-      DB_ENGINE: django.db.backends.mysql
-      DB_HOST: db
-      DB_NAME: app_database
-      DB_PASSWORD: password
-      DB_PORT: 3306
-      DB_USER: app_user
-      DEBUG: "True"
-      SECRET_KEY: local_development
+      DB_ENGINE: django.db.backends.mysql # Django specific, but indicates MySQL usage.
+      DB_HOST: db # Hostname of the MySQL database service.
+      DB_NAME: app_database # Name of the database to use.
+      DB_PASSWORD: password # Password for the DB_USER.
+      DB_PORT: 3306 # Port for the MySQL database.
+      DB_USER: app_user # Username for the database.
+      DEBUG: "True" # Enables Flask debug mode for development.
+      SECRET_KEY: ${FLASK_SECRET_KEY} # Flask secret key, sourced from .env file via FLASK_SECRET_KEY variable.
 
 
+  # MySQL database service, primarily for local development and testing.
   db:
     # This database service is used only for local development
     # Note: It may be preferable to use an online database service
     # https://db.anotherwebservice.com/
-    image: mysql
-    restart: always
+    image: mysql # Uses the official MySQL image from Docker Hub.
+    restart: always # Ensures the database service restarts automatically if it stops.
+    # Sets up MySQL root password and creates a default user/database.
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_USER: app_user
       MYSQL_PASSWORD: password
       MYSQL_DATABASE: app_database
 
+  # phpMyAdmin service for accessing and managing the local MySQL database via a web UI.
   phpmyadmin:
     # To view the database during local development
     # Visit http://127.0.0.1:8080/
     # Server is: db
     # Username is same as MYSQL_USER
     # Password is same as MYSQL_PASSWORD
-    image: phpmyadmin
-    restart: always
+    image: phpmyadmin # Uses the official phpMyAdmin image.
+    restart: always # Ensures phpMyAdmin restarts if it stops.
     ports:
-      - 8080:80
+      - 8080:80 # Access phpMyAdmin on http://localhost:8080 (maps host port 8080 to container port 80).
+    # Environment variables for phpMyAdmin.
     environment:
-      PMA_ARBITRARY: "1"
+      PMA_ARBITRARY: "1" # Allows connecting to arbitrary MySQL servers, in this case, the 'db' service.
