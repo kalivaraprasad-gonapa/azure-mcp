@@ -14,7 +14,22 @@ handler = logging.StreamHandler()  # sys.stderr will be used by default
 
 
 class RequestFormatter(coloredlogs.ColoredFormatter):
+    """
+    Custom log formatter that adds request-specific information (URL, remote address)
+    to log records if the log message is emitted within a Flask request context.
+    """
     def format(self, record):
+        """
+        Formats the log record.
+        
+        Adds 'url' and 'remote_addr' to the record if available from the request context.
+        
+        Args:
+            record (logging.LogRecord): The log record to format.
+            
+        Returns:
+            str: The formatted log message.
+        """
         if has_request_context():
             record.url = request.url
             record.remote_addr = request.remote_addr
@@ -37,6 +52,18 @@ log.setLevel(PYTHON_LOG_LEVEL)
 
 # Log all uncuaght exceptions
 def handle_exception(exc_type, exc_value, exc_traceback):
+    """
+    Global exception handler to log all uncaught exceptions.
+    
+    If the exception is a KeyboardInterrupt, it respects the default system behavior.
+    Otherwise, it logs the exception as critical.
+    
+    Args:
+        exc_type (type): The type of the exception.
+        exc_value (Exception): The exception instance.
+        exc_traceback (traceback): A traceback object encapsulating the call stack at
+                                   the point where the exception originally occurred.
+    """
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return

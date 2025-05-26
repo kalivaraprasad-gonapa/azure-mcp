@@ -14,6 +14,16 @@ DB_NAME = os.getenv("DB_NAME", None)
 
 
 def get_db():
+    """
+    Connects to the specific database.
+    
+    If a connection does not exist on the current application context (g),
+    it creates one using SQLAlchemy and stores it in `g.db`.
+    Subsequent calls within the same context will return the existing connection.
+    
+    Returns:
+        sqlalchemy.engine.Connection: The database connection object.
+    """
     if "db" not in g:
         log.info("Connecting to database")
         engine = create_engine(
@@ -28,6 +38,15 @@ def get_db():
 
 
 def close_db(e=None):
+    """
+    Closes the current database connection if one exists.
+    
+    This function is typically registered with Flask's `teardown_appcontext`
+    to be called automatically when the application context ends.
+    
+    Args:
+        e (Exception, optional): Exception that might have triggered the teardown. Defaults to None.
+    """
     log.info("close_db requested")
     db = g.pop("db", None)
     if db is not None:

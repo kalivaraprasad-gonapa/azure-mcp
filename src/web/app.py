@@ -10,11 +10,17 @@ app.teardown_appcontext(close_db)
 
 @app.route("/")
 def index():
+    """Renders the main index page."""
     return render_template("index.html")
 
 
 @app.route("/health")
 def health():
+    """Performs a health check of the application.
+    
+    Checks for database connectivity by executing a simple query.
+    Returns "OK" if the database connection is successful, "BAD" otherwise.
+    """
     log.info("Checking /health")
     db = get_db()
     health = "BAD"

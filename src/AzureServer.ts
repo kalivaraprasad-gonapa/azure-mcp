@@ -16,17 +16,23 @@ import {
 import { ResourceManagementClient } from "@azure/arm-resources";
 import { SubscriptionClient } from "@azure/arm-subscriptions";
 import LoggerService from "./LoggerService";
-import { parseEnvInt } from "./config";
+import { codePrompt, CONFIG, AZURE_CREDENTIALS } from "./config.js"; // Import AZURE_CREDENTIALS
+import { AzureOperations } from './AzureOperations.js';
+// Schemas are imported directly by handlers, no need to import them here
+import { listResourceGroupsHandler } from './tool-handlers/listResourceGroupsHandler.js';
+import { createResourceGroupHandler } from './tool-handlers/createResourceGroupHandler.js';
+import { runAzureCodeHandler } from './tool-handlers/runAzureCodeHandler.js';
+import { listTenantsHandler } from './tool-handlers/listTenantsHandler.js';
+import { selectTenantHandler } from './tool-handlers/selectTenantHandler.js';
+import { getResourceDetailsHandler } from './tool-handlers/getResourceDetailsHandler.js';
 
-// Constants
-const CONFIG = {
-    SERVER_VERSION: process.env.SERVER_VERSION || "1.0.0",
-    MAX_RETRIES: parseEnvInt(process.env.MAX_RETRIES || "3", 10),
-    RETRY_DELAY_MS: parseEnvInt(process.env.RETRY_DELAY_MS || "1000", 10),
-    LOG_LEVEL: process.env.LOG_LEVEL || "info",
-};
+// CONFIG object is now imported from config.js
 
-// Type definitions
+/**
+ * @interface ServerContext
+ * @description Defines the structure for the server's context object, holding Azure clients,
+ * credentials, and selected tenant/subscription information.
+ */
 interface ServerContext {
     resourceClient: ResourceManagementClient | null;
     subscriptionClient: SubscriptionClient | null;
@@ -36,7 +42,13 @@ interface ServerContext {
     apiVersion?: string;
 }
 
-// Error classes
+/**
+ * @class AzureMCPError
+ * @extends Error
+ * @description Custom error class for general Azure MCP server errors.
+ * @param {string} message - The error message.
+ * @param {string} code - A unique error code.
+ */
 class AzureMCPError extends Error {
     constructor(message: string, public readonly code: string) {
         super(message);
@@ -44,30 +56,35 @@ class AzureMCPError extends Error {
     }
 }
 
+/**
+ * @class AzureAuthenticationError
+ * @extends AzureMCPError
+ * @description Custom error class for Azure authentication failures.
+ * @param {string} message - The error message.
+ */
 class AzureAuthenticationError extends AzureMCPError {
     constructor(message: string) {
         super(message, "AUTH_FAILED");
     }
 }
 
+/**
+ * @class AzureResourceError
+ * @extends AzureMCPError
+ * @description Custom error class for errors related to Azure resource operations.
+ * @param {string} message - The error message.
+ */
 class AzureResourceError extends AzureMCPError {
     constructor(message: string) {
         super(message, "RESOURCE_ERROR");
     }
 }
 
-// Code prompt template
-const codePrompt = `Your job is to answer questions about Azure environment by writing Javascript code using Azure SDK. The code must adhere to a few rules:
-- Use the provided client instances: 'resourceClient' for ResourceManagementClient and 'subscriptionClient' for SubscriptionClient
-- DO NOT create new client instances or import Azure SDK packages
-- Use async/await and promises
-- Think step-by-step before writing the code
-- Avoid hardcoded values like Resource IDs
-- Handle errors gracefully
-- Handle pagination correctly using for-await-of loops
-- Data returned must be JSON containing only the minimal amount of data needed
-- Code MUST "return" a value: string, number, boolean or JSON object`;
-
+/**
+ * @class AzureMCPServer
+ * @description Main class for the Azure Model Context Protocol (MCP) server.
+ * Handles tool requests, manages Azure client context, and interacts with Azure services.
+ */
 class AzureMCPServer {
     private server: Server;
     private context: ServerContext;
@@ -101,6 +118,12 @@ class AzureMCPServer {
         this.initializeRequestHandlers();
     }
 
+    /**
+     * @private
+     * @method initializeRequestHandlers
+     * @description Sets up request handlers for the MCP server (e.g., ListTools, CallTool).
+     * Also initializes the AzureOperations instance.
+     */
     private initializeRequestHandlers(): void {
         this.server.setRequestHandler(ListToolsRequestSchema, this.handleListTools.bind(this));
         this.server.setRequestHandler(CallToolRequestSchema, this.handleCallTool.bind(this));
@@ -109,33 +132,51 @@ class AzureMCPServer {
         this.azureOperations = new AzureOperations(this.context, this.logger);
     }
 
+    /**
+     * @private
+     * @method createCredential
+     * @description Creates a chained token credential for Azure authentication, attempting various
+     * methods like client secret, managed identity, and default Azure credential.
+     * @param {string} [tenantId] - Optional tenant ID to use for specific credential types.
+     * @returns {ChainedTokenCredential} The configured ChainedTokenCredential instance.
+     */
     private createCredential(tenantId?: string): ChainedTokenCredential {
         const credentials = [];
 
         // Add environment-based credential
-        if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID) {
+        if (AZURE_CREDENTIALS.CLIENT_ID && AZURE_CREDENTIALS.CLIENT_SECRET && AZURE_CREDENTIALS.TENANT_ID) {
             credentials.push(new ClientSecretCredential(
-                process.env.AZURE_TENANT_ID,
-                process.env.AZURE_CLIENT_ID,
-                process.env.AZURE_CLIENT_SECRET
+                AZURE_CREDENTIALS.TENANT_ID,
+                AZURE_CREDENTIALS.CLIENT_ID,
+                AZURE_CREDENTIALS.CLIENT_SECRET
             ));
         }
 
         // Add managed identity with specific client ID if available
-        if (process.env.AZURE_CLIENT_ID) {
-            credentials.push(new ManagedIdentityCredential(process.env.AZURE_CLIENT_ID));
+        if (AZURE_CREDENTIALS.CLIENT_ID) {
+            credentials.push(new ManagedIdentityCredential(AZURE_CREDENTIALS.CLIENT_ID));
         } else {
             credentials.push(new ManagedIdentityCredential());
         }
 
         // Add default Azure credential as fallback
         credentials.push(new DefaultAzureCredential({
-            tenantId: tenantId || process.env.AZURE_TENANT_ID
+            tenantId: tenantId || AZURE_CREDENTIALS.TENANT_ID // Use AZURE_CREDENTIALS.TENANT_ID for fallback
         }));
 
         return new ChainedTokenCredential(...credentials);
     }
 
+    /**
+     * @private
+     * @async
+     * @method initializeClients
+     * @description Initializes Azure SDK clients (ResourceManagementClient, SubscriptionClient)
+     * for the specified tenant and subscription ID. Updates the server context.
+     * @param {string} tenantId - The Azure Tenant ID.
+     * @param {string} subscriptionId - The Azure Subscription ID.
+     * @throws {AzureAuthenticationError} If client initialization fails.
+     */
     private async initializeClients(tenantId: string, subscriptionId: string): Promise<void> {
         try {
             // Use enhanced credential creation
@@ -161,21 +202,16 @@ class AzureMCPServer {
         }
     }
 
-    private async getCachedResource(key: string, fetchFn: () => Promise<any>, ttlMs = 60000): Promise<any> {
-        const cachedItem = this.resourceCache.get(key);
-        if (cachedItem && (Date.now() - cachedItem.timestamp) < ttlMs) {
-            return cachedItem.data;
-        }
+    // getCachedResource removed as its logic is now directly in handlers
 
-        const data = await fetchFn();
-        this.resourceCache.set(key, {
-            data,
-            timestamp: Date.now()
-        });
-
-        return data;
-    }
-
+    /**
+     * @private
+     * @method logWithContext
+     * @description Logs a message with additional context (tenant, subscription).
+     * @param {string} level - The log level (e.g., 'info', 'error').
+     * @param {string} message - The message to log.
+     * @param {Record<string, any>} [context={}] - Additional context to include in the log entry.
+     */
     private logWithContext(level: string, message: string, context: Record<string, any> = {}): void {
         const logEntry = {
             timestamp: new Date().toISOString(),
@@ -203,6 +239,13 @@ class AzureMCPServer {
         }
     }
 
+    /**
+     * @private
+     * @async
+     * @method handleListTools
+     * @description Handles the "ListTools" request from the MCP client.
+     * @returns {Promise<object>} A promise that resolves to an object containing the list of available tools.
+     */
     private async handleListTools() {
         return {
             tools: [
@@ -309,6 +352,17 @@ class AzureMCPServer {
         };
     }
 
+    /**
+     * @private
+     * @async
+     * @method executeWithRetry
+     * @description Executes an asynchronous operation with a retry mechanism for transient failures.
+     * @template T
+     * @param {() => Promise<T>} operation - The asynchronous operation to execute.
+     * @param {number} [retries=CONFIG.MAX_RETRIES] - The maximum number of retries.
+     * @returns {Promise<T>} A promise that resolves with the result of the operation if successful.
+     * @throws {Error} Throws the last encountered error if all retries fail.
+     */
     private async executeWithRetry<T>(
         operation: () => Promise<T>,
         retries = CONFIG.MAX_RETRIES
@@ -330,6 +384,16 @@ class AzureMCPServer {
         throw lastError || new Error('Operation failed after retries');
     }
 
+    /**
+     * @private
+     * @async
+     * @method handleCallTool
+     * @description Handles the "CallTool" request from the MCP client. It dispatches the request
+     * to the appropriate tool handler based on the tool name.
+     * @param {z.infer<typeof CallToolRequestSchema>} request - The CallTool request object.
+     * @returns {Promise<object>} A promise that resolves to the formatted tool response.
+     * @throws {AzureMCPError} If the tool name is unknown or if arguments are invalid.
+     */
     private async handleCallTool(request: z.infer<typeof CallToolRequestSchema>) {
         const { name, arguments: args } = request.params;
 
@@ -337,23 +401,22 @@ class AzureMCPServer {
             let result;
             switch (name) {
                 case "run-azure-code":
-                    result = await this.handleRunAzureCode(args);
+                    result = await runAzureCodeHandler(args, this.context, this.azureOperations, this.logger, this.initializeClients.bind(this), this.wrapUserCode.bind(this), this.executeWithRetry.bind(this));
                     break;
                 case "list-tenants":
-                    result = await this.handleListTenants();
+                    result = await listTenantsHandler(this.logger, this.executeWithRetry.bind(this));
                     break;
                 case "select-tenant":
-                    result = await this.handleSelectTenant(args);
+                    result = await selectTenantHandler(args, this.logger, this.initializeClients.bind(this));
                     break;
-                // New tools
-                case "list-resource-groups":
-                    result = await this.handleListResourceGroups();
+                case "list-resource-groups": // "New tools" comment removed as it's now integrated
+                    result = await listResourceGroupsHandler(this.context, this.azureOperations, this.logger, this.resourceCache);
                     break;
                 case "get-resource-details":
-                    result = await this.handleGetResourceDetails(args);
+                    result = await getResourceDetailsHandler(args, this.context, this.azureOperations, this.logger, this.resourceCache);
                     break;
                 case "create-resource-group":
-                    result = await this.handleCreateResourceGroup(args);
+                    result = await createResourceGroupHandler(args, this.context, this.azureOperations, this.logger, this.resourceCache);
                     break;
                 default:
                     throw new AzureMCPError(`Unknown tool: ${name}`, "UNKNOWN_TOOL");
@@ -381,174 +444,17 @@ class AzureMCPServer {
                 })
             );
         }
-    }
 
-    private async handleRunAzureCode(args: any) {
-        const { code, tenantId, subscriptionId } = RunAzureCodeSchema.parse(args);
-
-        if (!this.context.selectedTenant && !tenantId) {
-            throw new AzureMCPError(
-                "Please select a tenant first using the 'select-tenant' tool!",
-                "NO_TENANT"
-            );
-        }
-
-        if (tenantId && subscriptionId) {
-            await this.initializeClients(tenantId, subscriptionId);
-        }
-
-        if (!this.context.resourceClient || !this.context.subscriptionClient) {
-            throw new AzureMCPError(
-                "Clients not initialized",
-                "NO_CLIENTS"
-            );
-        }
-
-        const wrappedCode = this.wrapUserCode(code);
-        const wrappedIIFECode = `(async function() { return (async () => { ${wrappedCode} })(); })()`;
-
-        try {
-            const result = await this.executeWithRetry(() =>
-                runInContext(wrappedIIFECode, createContext(this.context))
-            );
-            return this.createTextResponse(JSON.stringify(result));
-        } catch (error) {
-            this.logWithContext("error", `Error executing user code: ${error}`, { error });
-            throw new AzureMCPError(
-                `Failed to execute code: ${error}`,
-                "CODE_EXECUTION_FAILED"
-            );
-        }
-    }
-
-    private async handleListTenants() {
-        try {
-            const creds = new DefaultAzureCredential();
-            const client = new SubscriptionClient(creds);
-
-            const [tenants, subscriptions] = await Promise.all([
-                this.executeWithRetry(async () => {
-                    const items = [];
-                    for await (const tenant of client.tenants.list()) {
-                        items.push({
-                            id: tenant.tenantId,
-                            name: tenant.displayName
-                        });
-                    }
-                    return items;
-                }),
-                this.executeWithRetry(async () => {
-                    const items = [];
-                    for await (const sub of client.subscriptions.list()) {
-                        items.push({
-                            id: sub.subscriptionId,
-                            name: sub.displayName,
-                            state: sub.state
-                        });
-                    }
-                    return items;
-                })
-            ]);
-
-            return this.createTextResponse(JSON.stringify({ tenants, subscriptions }));
-        } catch (error) {
-            this.logWithContext("error", `Error listing tenants: ${error}`, { error });
-            throw new AzureAuthenticationError(
-                `Failed to list tenants and subscriptions: ${error}`
-            );
-        }
-    }
-
-    private async handleSelectTenant(args: any) {
-        const { tenantId, subscriptionId } = SelectTenantSchema.parse(args);
-        await this.initializeClients(tenantId, subscriptionId);
-        return this.createTextResponse("Tenant and subscription selected! Clients initialized.");
-    }
-
-    private async handleListResourceGroups() {
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        try {
-            const cacheKey = `resource-groups-${this.context.selectedSubscription}`;
-            return await this.getCachedResource(cacheKey, async () => {
-                // Use azureOperations to handle the business logic
-                return await this.azureOperations.listResourceGroups();
-            }, 30000);
-        } catch (error) {
-            this.logWithContext("error", `Error listing resource groups: ${error}`, { error });
-            throw new AzureResourceError(`Failed to list resource groups: ${error}`);
-        }
-    }
-
-    private async handleGetResourceDetails(args: any) {
-        const { resourceId } = z.object({
-            resourceId: z.string().min(1, "Resource ID cannot be empty")
-        }).parse(args);
-
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        try {
-            // The resource ID format is: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{provider}/{resourceType}/{resourceName}
-            const parts = resourceId.split('/');
-            if (parts.length < 8) {
-                throw new AzureResourceError("Invalid resource ID format");
-            }
-
-            const cacheKey = `resource-${resourceId}`;
-            const resource = await this.getCachedResource(cacheKey, async () => {
-                // Use azureOperations to get the resource
-                return await this.azureOperations.getResource(resourceId);
-            }, 60000); // Cache for 1 minute
-
-            return {
-                id: resource.id,
-                name: resource.name,
-                type: resource.type,
-                location: resource.location,
-                tags: resource.tags || {},
-                properties: resource.properties || {}
-            };
-        } catch (error) {
-            this.logWithContext("error", `Error getting resource details: ${error}`, { error });
-            throw new AzureResourceError(`Failed to get resource details: ${error}`);
-        }
-    }
-
-    private async handleCreateResourceGroup(args: any) {
-        const { name, location, tags } = z.object({
-            name: z.string().min(1, "Resource group name cannot be empty"),
-            location: z.string().min(1, "Location cannot be empty"),
-            tags: z.record(z.string()).optional()
-        }).parse(args);
-
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        try {
-            // Use azureOperations to create the resource group
-            const result = await this.azureOperations.createResourceGroup(name, location, tags);
-
-            // Invalidate cache for resource groups list
-            this.resourceCache.delete(`resource-groups-${this.context.selectedSubscription}`);
-
-            return {
-                id: result.id,
-                name: result.name,
-                location: result.location,
-                tags: result.tags || {},
-                provisioningState: result.properties?.provisioningState
-            };
-        } catch (error) {
-            this.logWithContext("error", `Error creating resource group: ${error}`, { error });
-            throw new AzureResourceError(`Failed to create resource group: ${error}`);
-        }
-    }
-
+    /**
+     * @private
+     * @method wrapUserCode
+     * @description Wraps user-provided JavaScript code for safer execution.
+     * It attempts to ensure the code returns a value and performs basic sanitization
+     * by replacing direct `process.env`, `require`, and `import` usages.
+     * @param {string} userCode - The raw JavaScript code provided by the user/LLM.
+     * @returns {string} The processed/wrapped code ready for execution.
+     * @throws {AzureMCPError} If code processing fails.
+     */
     private wrapUserCode(userCode: string): string {
         try {
             // Sanitize user code to prevent certain patterns
@@ -581,6 +487,14 @@ class AzureMCPServer {
         }
     }
 
+    /**
+     * @private
+     * @method createTextResponse
+     * @description Formats a string (either plain text or a JSON string) into the standard
+     * MCP text response structure. Cleans plain text by removing ANSI codes, log indicators, and HTML tags.
+     * @param {string} text - The input text or JSON string.
+     * @returns {object} An MCP-compliant response object with a text content part.
+     */
     private createTextResponse(text: string) {
         try {
             // If the input is already a JSON string, parse and reconstruct it properly
@@ -614,6 +528,13 @@ class AzureMCPServer {
         }
     }
 
+    /**
+     * @public
+     * @async
+     * @method start
+     * @description Starts the Azure MCP server by connecting it to the specified transport (Stdio).
+     * @throws {AzureMCPError} If the server fails to start.
+     */
     public async start(): Promise<void> {
         try {
             await this.server.connect(this.transport);
@@ -628,110 +549,19 @@ class AzureMCPServer {
     }
 
     // For testing purposes only
+    /**
+     * @public
+     * @async
+     * @method __testOnly_setContext
+     * @description **FOR TESTING PURPOSES ONLY.** Allows setting a partial server context.
+     * @param {Partial<ServerContext>} context - The partial context to apply.
+     * @returns {Promise<string>} A confirmation message.
+     */
     public async __testOnly_setContext(context: Partial<ServerContext>) {
         this.context = { ...this.context, ...context };
         return "Context updated for testing";
     }
-}
 
-// Azure Operations class for better separation of concerns
-class AzureOperations {
-    constructor(private context: ServerContext, private logger: any) { }
-
-    async listResourceGroups() {
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        const resourceGroups = [];
-        for await (const group of this.context.resourceClient.resourceGroups.list()) {
-            resourceGroups.push({
-                id: group.id,
-                name: group.name,
-                location: group.location,
-                tags: group.tags || {}
-            });
-        }
-
-        return resourceGroups;
-    }
-
-    async getResource(resourceId: string) {
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        return await this.context.resourceClient.resources.getById(
-            resourceId,
-            'latest'
-        );
-    }
-
-    async createResourceGroup(name: string, location: string, tags?: Record<string, string>) {
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        return await this.context.resourceClient.resourceGroups.createOrUpdate(
-            name,
-            { location, tags }
-        );
-    }
-
-    async listResourcesByType(resourceType: string, provider: string) {
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        const resources = [];
-        // Using list() with a filter instead of listByResourceType which doesn't exist
-        const filter = `resourceType eq '${provider}/${resourceType}'`;
-        for await (const resource of this.context.resourceClient.resources.list({ filter })) {
-            resources.push({
-                id: resource.id,
-                name: resource.name,
-                type: resource.type,
-                location: resource.location,
-                tags: resource.tags || {}
-            });
-        }
-
-        return resources;
-    }
-
-    async getResourceGroup(resourceGroupName: string) {
-        if (!this.context.resourceClient) {
-            throw new AzureMCPError("Client not initialized", "NO_CLIENT");
-        }
-
-        return await this.context.resourceClient.resourceGroups.get(resourceGroupName);
-    }
-}
-
-// Schema definitions
-const RunAzureCodeSchema = z.object({
-    reasoning: z.string()
-        .min(1, "Reasoning cannot be empty")
-        .describe("The reasoning behind the code"),
-    code: z.string()
-        .min(1, "Code cannot be empty")
-        .describe(codePrompt),
-    tenantId: z.string()
-        .optional()
-        .describe("Azure Tenant ID"),
-    subscriptionId: z.string()
-        .optional()
-        .describe("Azure Subscription ID"),
-});
-
-const SelectTenantSchema = z.object({
-    tenantId: z.string()
-        .describe("Azure Tenant ID to select"),
-    subscriptionId: z.string()
-        .describe("Azure Subscription ID to select"),
-});
-
-// Start the server
 if (require.main === module) {
     const server = new AzureMCPServer();
     server.start().catch((error) => {
@@ -740,4 +570,4 @@ if (require.main === module) {
     });
 }
 
-export { AzureMCPServer, AzureMCPError };
+export { AzureMCPServer, AzureMCPError, ServerContext, AzureAuthenticationError, AzureResourceError };
