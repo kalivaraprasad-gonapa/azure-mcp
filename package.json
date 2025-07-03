@@ -16,6 +16,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@azure/arm-authorization": "^9.0.0",
     "@azure/arm-compute": "^22.3.0",
     "@azure/arm-network": "^33.5.0",
     "@azure/arm-resources": "^5.2.0",
