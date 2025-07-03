@@ -12,7 +12,14 @@
   "main": "dist/launcher.js",
   "scripts": {
     "start": "node dist/launcher.js",
-    "build": "tsc"
+    "start:modular": "tsx src/AzureServerModular.ts",
+    "build": "tsc",
+    "start:stdio": "cross-env SERVER_TYPE=stdio tsx src/AzureServerModular.ts",
+    "start:http": "cross-env SERVER_TYPE=http HTTP_PORT=3000 tsx src/AzureServerModular.ts",
+    "start:rest": "cross-env SERVER_TYPE=rest HTTP_PORT=3000 tsx src/AzureServerModular.ts",
+    "dev:stdio": "cross-env SERVER_TYPE=stdio tsx src/AzureServerModular.ts",
+    "dev:http": "cross-env SERVER_TYPE=http HTTP_PORT=3000 tsx src/AzureServerModular.ts",
+    "dev:rest": "cross-env SERVER_TYPE=rest HTTP_PORT=3000 tsx src/AzureServerModular.ts"
   },
   "license": "MIT",
   "dependencies": {
@@ -24,7 +31,9 @@
     "@azure/identity": "^4.7.0",
     "@azure/ms-rest-nodeauth": "^3.1.1",
     "@modelcontextprotocol/sdk": "^1.5.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "express": "^5.1.0",
     "ts-morph": "^25.0.1",
     "typescript": "^5.7.3",
     "winston": "^3.17.0",
@@ -32,6 +41,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^22.14.1"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.14.1",
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.1.10"
   }
 }
